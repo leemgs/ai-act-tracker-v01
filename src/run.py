@@ -41,6 +41,9 @@ def main() -> None:
     cl_cases = build_case_summaries_from_hits(hits)
 
     md = render_markdown(lawsuits, cl_docs, cl_cases)
+    print("===== REPORT BEGIN =====")
+    print(md[:8000])
+    print("===== REPORT END =====")
     print(\"===== REPORT BEGIN =====\")
     print(md[:8000])
     print(\"===== REPORT END =====\")
