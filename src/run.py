@@ -74,8 +74,8 @@ def main() -> None:
     # 5) Slack 요약 전송
     summary_lines = [
         f"*AI 소송 모니터링 업데이트* ({timestamp})",
-        f"- 언론보도 기반 건수: {len(lawsuits)}건",
-        f"- 법원기록 기반 건수: {len(cl_docs)}건",
+        f"- 언론보도 기반 수집 건수: {len(lawsuits)}건",
+        f"- 법원기록 기반 수집 건수: {len(cl_docs)}건",
         f"- GitHub Issue: <{issue_url}|#{issue_no}>",
     ]
     
