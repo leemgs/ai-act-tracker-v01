@@ -8,7 +8,14 @@ from .extract import load_known_cases, build_lawsuits_from_news
 from .render import render_markdown
 from .github_issue import find_or_create_issue, create_comment, close_other_daily_issues
 from .slack import post_to_slack
-from .courtlistener import search_recent_documents, build_complaint_documents_from_hits, build_case_summaries_from_hits
+from .courtlistener import (
+    search_recent_documents,
+    build_complaint_documents_from_hits,
+    build_case_summaries_from_hits,
+    build_case_summaries_from_docket_numbers,
+    build_case_summaries_from_case_titles,
+    build_documents_from_docket_ids,
+)
 from .queries import COURTLISTENER_QUERIES
 
 def main() -> None:
@@ -19,6 +26,8 @@ def main() -> None:
     slack_webhook = os.environ["SLACK_WEBHOOK_URL"]
 
     base_title = os.environ.get("ISSUE_TITLE_BASE", "AI 불법/무단 학습데이터 소송 모니터링")
+    lookback_days = int(os.environ.get("LOOKBACK_DAYS", "3"))
+    # 필요 시 2로 변경: 환경변수 LOOKBACK_DAYS=2
     
     # KST 기준 날짜 생성
     now_kst = datetime.now(ZoneInfo("Asia/Seoul"))
@@ -32,7 +41,7 @@ def main() -> None:
     # 1) CourtListener 검색
     hits = []
     for q in COURTLISTENER_QUERIES:
-        hits.extend(search_recent_documents(q, days=3, max_results=20))
+        hits.extend(search_recent_documents(q, days=lookback_days, max_results=20))
     
     # 중복 제거
     dedup = {}
@@ -41,19 +50,40 @@ def main() -> None:
         dedup[key] = h
     hits = list(dedup.values())
 
-    cl_docs = build_complaint_documents_from_hits(hits, days=3)
+    cl_docs = build_complaint_documents_from_hits(hits, days=lookback_days)
     # RECAP 도켓(사건) 요약: "법원 사건(도켓) 확인 건수"로 사용
     cl_cases = build_case_summaries_from_hits(hits)
-    docket_case_count = len(cl_cases)
-    recap_doc_count = len(cl_docs)
 
     # 2) 뉴스 수집
     news = fetch_news()
     known = load_known_cases()
-    lawsuits = build_lawsuits_from_news(news, known)
+    lawsuits = build_lawsuits_from_news(news, known, lookback_days=lookback_days)
+
+    # 2-1) 뉴스 테이블의 소송번호(도켓번호)로 RECAP 도켓/문서 확장
+    docket_numbers = [s.case_number for s in lawsuits if (s.case_number or "").strip() and s.case_number != "미확인"]
+    extra_cases = build_case_summaries_from_docket_numbers(docket_numbers)
+
+    # 2-2) 소송번호가 없더라도, '소송제목'(추정 케이스명)으로 도켓 확장
+    case_titles = [s.case_title for s in lawsuits if (s.case_title or "").strip() and s.case_title != "미확인"]
+    extra_cases_by_title = build_case_summaries_from_case_titles(case_titles)
+
+    merged_cases = {c.docket_id: c for c in (cl_cases + extra_cases + extra_cases_by_title)}
+    cl_cases = list(merged_cases.values())
+
+    # 문서도 docket id 기반으로 추가 시도(Complaint 우선, 없으면 fallback)
+    docket_ids = list(merged_cases.keys())
+    extra_docs = build_documents_from_docket_ids(docket_ids, days=lookback_days)
+    merged_docs = {}
+    for d in (cl_docs + extra_docs):
+        key = (d.docket_id, d.doc_number, d.date_filed, d.document_url)
+        merged_docs[key] = d
+    cl_docs = list(merged_docs.values())
+
+    docket_case_count = len(cl_cases)
+    recap_doc_count = len(cl_docs)
 
     # 3) 렌더링
-    md = render_markdown(lawsuits, cl_docs, cl_cases)
+    md = render_markdown(lawsuits, cl_docs, cl_cases, lookback_days=lookback_days)
     md = f"### 실행 시각(KST): {run_ts_kst}\n\n" + md
     
     print("===== REPORT BEGIN =====")

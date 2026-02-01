@@ -32,7 +32,13 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           COURTLISTENER_TOKEN: ${{ secrets.COURTLISTENER_TOKEN }}
-          ISSUE_TITLE: "AI 불법/무단 학습데이터 소송 모니터링"
+          # 기본값(코드 내 default) = 3일
+          # Actions → Variables에 LOOKBACK_DAYS를 만들면 2 등으로 쉽게 조정 가능
+          LOOKBACK_DAYS: ${{ vars.LOOKBACK_DAYS }}
+          # 도켓 후보 Top3 표기(0/1). Actions → Variables에 SHOW_DOCKET_CANDIDATES 설정 가능
+          SHOW_DOCKET_CANDIDATES: ${{ vars.SHOW_DOCKET_CANDIDATES }}
+
+          ISSUE_TITLE_BASE: "AI 불법/무단 학습데이터 소송 모니터링"
           ISSUE_LABEL: "ai-lawsuit-monitor"
         run: |
           python -m src.run | tee run_output.log

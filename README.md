@@ -18,12 +18,35 @@ GitHub Issue에 댓글로 누적하고 Slack으로 요약을 발송합니다.
 > 주의: RECAP은 "공개된 문서만" 존재합니다. 어떤 사건은 RECAP 문서가 없을 수 있으며,
 > 그 경우 CourtListener 단계는 힌트만 남기고 뉴스(RSS)로 폴백합니다.
 
+## 뉴스 제목만 있는 경우 도켓/사건 역조회
+- RSS에 **소송번호(도켓번호)**가 있으면 가장 정확하게 도켓을 확장합니다.
+- 소송번호가 없더라도, "Bartz et al. v. Anthropic"처럼 기사 제목에서 **"A v. B" 형태의 사건명**이 추정되면
+  이를 이용해 CourtListener에서 도켓을 역조회합니다.
+- Issue의 뉴스 표에서는 "소송제목/기사제목" 컬럼으로 **(추정 사건명 / 기사 원제목)**을 함께 표시합니다.
+
 ## GitHub Secrets 설정
 Repository → Settings → Secrets and variables → Actions → New repository secret
 
-- `GH_TOKEN` (필수): repo 권한 GitHub Personal Access Token (scope: `repo`)
-- `SLACK_WEBHOOK_URL` (필수): Slack Incoming Webhook URL
-- `COURTLISTENER_TOKEN` (권장): CourtListener API 토큰 (v4 API 인증 필요 가능)
+### 필수
+- `SLACK_WEBHOOK_URL`: Slack Incoming Webhook URL
+
+### 선택(권장)
+- `COURTLISTENER_TOKEN`: CourtListener API 토큰 (v4 API 인증)
+
+> 참고: GitHub Issue 댓글 업로드는 workflow에 `permissions: issues: write`가 설정되어 있어
+> 기본 제공 `GITHUB_TOKEN`(`${{ github.token }}`)으로 동작합니다. 별도 PAT는 필요하지 않습니다.
+
+
+## 최근 범위(일수) 설정
+- 기본값: 3일
+- 변경: 환경변수 `LOOKBACK_DAYS`를 2 등으로 설정
+  - 예: `LOOKBACK_DAYS=2`
+- 로컬 실행 시 `.env` 또는 `.env.example`을 참고해 관리할 수 있습니다.
+
+## 도켓 후보(Top3) 표시 옵션
+- 소송번호/사건명 매칭이 애매할 때, CourtListener의 **도켓 후보 Top3**를 리포트 표에 함께 표시할 수 있습니다.
+- 환경변수: `SHOW_DOCKET_CANDIDATES=1`
+  - 기본값은 0(표시 안 함)
 
 ## 커스터마이징
 - `src/queries.py`에서 키워드 조정
