@@ -157,16 +157,28 @@ def render_markdown(
     lines.append("- 80~100 🔥 : 무단 수집 + 학습 + 상업적 사용 고위험")
     lines.append("</details>\n")
 
-    # 🔥 820
+    # =====================================================
+    # ⚖️ RECAP 케이스 (820 + Others 모두 출력)
+    # =====================================================
     if cl_cases:
-        lines.append("## 🔥 820 Copyright\n")
-        lines.append("| 상태 | 케이스명 | 도켓번호 | Nature | 위험도 |")
-        lines.append(_md_sep(5))
+
+        copyright_cases = []
+        other_cases = []
 
         for c in cl_cases:
             if "820" in (c.nature_of_suit or ""):
+                copyright_cases.append(c)
+            else:
+                other_cases.append(c)
+
+        def render_case_table(cases):
+            lines.append("| 상태 | 케이스명 | 도켓번호 | Nature | 위험도 |")
+            lines.append(_md_sep(5))
+
+            for c in sorted(cases, key=lambda x: x.date_filed, reverse=True):
                 docket_url = f"https://www.courtlistener.com/docket/{c.docket_id}/"
                 score = calculate_case_risk_score(c)
+
                 lines.append(
                     f"| {_esc(c.status)} | "
                     f"{_mdlink(c.case_name, docket_url)} | "
@@ -174,6 +186,26 @@ def render_markdown(
                     f"{_esc(c.nature_of_suit)} | "
                     f"{format_risk(score)} |"
                 )
+
+        # 🔥 820 출력
+        lines.append("## 🔥 820 Copyright\n")
+        if copyright_cases:
+            render_case_table(copyright_cases)
+        else:
+            lines.append("820 사건 없음\n")
+
+        # 📁 Others 출력 (기존처럼 fold 유지)
+        lines.append("\n<details>")
+        lines.append(
+            '<summary><span style="font-size:1.5em; font-weight:bold;">📁 Others</span></summary>\n'
+        )
+
+        if other_cases:
+            render_case_table(other_cases)
+        else:
+            lines.append("Others 사건 없음\n")
+
+        lines.append("</details>\n")
 
     # 📄 RECAP 문서
     if cl_docs:
