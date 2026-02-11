@@ -131,7 +131,7 @@ def render_markdown(
 
     # AI Top3
     if cl_cases:
-        lines.append("## 🧠 핵심 요약 (Top 3)\n")
+        lines.append("## 🧠 최근 소송 (Top 3)\n")
         top_cases = sorted(cl_cases, key=lambda x: x.date_filed, reverse=True)[:3]
         for c in top_cases:
             lines.append(f"> **{_esc(c.case_name)}**")
