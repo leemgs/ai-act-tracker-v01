@@ -173,37 +173,44 @@ def render_markdown(
             else:
                 other_cases.append(c)
 
-        def render_case_table(cases):
+# ⚖️ RECAP 케이스 내부 render_case_table 수정 부분만 표시
+def render_case_table(cases):
+    lines.append(
+        "| 상태 | 케이스명 | 도켓번호 | Nature | 위험도 | "
+        "소송이유 | AI학습관련 핵심주장 | 법적 근거 | 담당판사 | 법원 | "
+        "Complaint 문서 번호 | Complaint PDF 링크 | 최근 도켓 업데이트 |"
+    )
+    lines.append(_md_sep(13))
 
-            lines.append(
-                "| 상태 | 케이스명 | 도켓번호 | Nature | 위험도 | "
-                "소송이유 | AI학습관련 핵심주장 | 법적 근거 | 담당판사 | 법원 | "
-                "Complaint 문서 번호 | Complaint PDF 링크 | 최근 도켓 업데이트 |"
-            )
-            lines.append(_md_sep(13))
+    for c in sorted(cases, key=lambda x: x.date_filed, reverse=True):
 
-            for c in sorted(cases, key=lambda x: x.date_filed, reverse=True):
+        slug = _slugify_case_name(c.case_name)
+        docket_url = f"https://www.courtlistener.com/docket/{c.docket_id}/{slug}/"
 
-                slug = _slugify_case_name(c.case_name)
-                docket_url = f"https://www.courtlistener.com/docket/{c.docket_id}/{slug}/"
+        score = calculate_case_risk_score(c)
 
-                score = calculate_case_risk_score(c)
+        # 🔥 court_short_name 사용 (render는 단순 표시만)
+        if c.court_short_name and c.court_api_url:
+            court_display = _mdlink(c.court_short_name, c.court_api_url)
+        else:
+            court_display = _esc(c.court)
 
-                lines.append(
-                    f"| {_esc(c.status)} | "
-                    f"{_mdlink(c.case_name, docket_url)} | "
-                    f"{_mdlink(c.docket_number, docket_url)} | "
-                    f"{_esc(c.nature_of_suit)} | "
-                    f"{format_risk(score)} | "
-                    f"{_short(c.extracted_causes, 120)} | "
-                    f"{_short(c.extracted_ai_snippet, 120)} | "
-                    f"{_esc(c.cause)} | "
-                    f"{_esc(c.judge)} | "
-                    f"{_esc(c.court)} | "
-                    f"{_esc(c.complaint_doc_no)} | "
-                    f"{_mdlink('PDF', c.complaint_link)} | "
-                    f"{_esc(c.recent_updates)} |"
-                )
+        lines.append(
+            f"| {_esc(c.status)} | "
+            f"{_mdlink(c.case_name, docket_url)} | "
+            f"{_mdlink(c.docket_number, docket_url)} | "
+            f"{_esc(c.nature_of_suit)} | "
+            f"{format_risk(score)} | "
+            f"{_short(c.extracted_causes, 120)} | "
+            f"{_short(c.extracted_ai_snippet, 120)} | "
+            f"{_esc(c.cause)} | "
+            f"{_esc(c.judge)} | "
+            f"{court_display} | "
+            f"{_esc(c.complaint_doc_no)} | "
+            f"{_mdlink('PDF', c.complaint_link)} | "
+            f"{_esc(c.recent_updates)} |"
+        )
+
 
         lines.append("## 🔥 RECAP: 820 Copyright\n")
         if copyright_cases:
@@ -249,9 +256,9 @@ def render_markdown(
     # 📘 위험도 평가 척도
     lines.append("<details>")
     lines.append("<summary><strong><span style=\"font-size:2.5em; font-weight:bold;\">📘 AI 학습 위험도 점수(0~100) 평가 척도</span></strong></summary>\n")
-    lines.append("AI 모델 학습과의 직접성 + 법적 리스크 강도를 수치화한 지표입니다.")
-    lines.append("0에 가까울수록 → 간접/주변 이슈")
-    lines.append("100에 가까울수록 → AI 학습 핵심 리스크 사건")   
+    lines.append("- AI 모델 학습과의 직접성 + 법적 리스크 강도를 수치화한 지표입니다.")
+    lines.append("- 0에 가까울수록 → 간접/주변 이슈")
+    lines.append("- 100에 가까울수록 → AI 학습 핵심 리스크 사건")   
     lines.append("")
     
     lines.append("### 📊 등급 기준")
