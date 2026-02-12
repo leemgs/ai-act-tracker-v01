@@ -374,7 +374,7 @@ def build_case_summary_from_docket_id(docket_id: int) -> Optional[CLCaseSummary]
     while url:
         data = _get(url, params=params) if params else _get(url)
         params = None
-       if not data:
+        if not data:
             break
 
         for e in data.get("results", []):
