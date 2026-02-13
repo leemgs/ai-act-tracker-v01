@@ -447,7 +447,8 @@ def build_case_summary_from_docket_id(docket_id: int) -> Optional[CLCaseSummary]
     html_pdf_url = _extract_first_pdf_from_docket_html(docket_id)
 
     if html_pdf_url:
-        complaint_link = f"[PDF]({html_pdf_url})"
+        # 🔥 순수 URL만 저장 (Markdown 생성 금지)
+        complaint_link = html_pdf_url
         complaint_doc_no = "1"  # 첫 번째 문서 기준
         complaint_type = "Original"
 
