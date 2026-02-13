@@ -401,11 +401,9 @@ def build_case_summary_from_docket_id(docket_id: int) -> Optional[CLCaseSummary]
                 found_entries.append(e)
 
         url = data.get("next")
-
         
-    if complaint_docs:
-    if found_entries:
-        found_entries.sort(
+    if found_entries:
+        found_entries.sort(
             key=lambda x: _safe_str(x.get("date_filed")),
             reverse=True
         )
