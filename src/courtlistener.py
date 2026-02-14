@@ -224,7 +224,11 @@ def _extract_first_pdf_from_docket_html(docket_id: int) -> str:
 def search_recent_documents(query: str, days: int = 3, max_results: int = 20) -> List[dict]:
     data = _get(
         SEARCH_URL,
-        params={"q": query, "type": "r", "page_size": max_results},
+        # 🔥 FIX: RECAP 문서 검색(type=r) → 사건 검색(type=ca)
+        # r = recap documents (문서)
+        # ca = cases (사건)
+        # 사건 기반으로 검색해야 docket_id 확보 가능
+        params={"q": query, "type": "ca", "page_size": max_results},
     )
     if not data:
         return []
