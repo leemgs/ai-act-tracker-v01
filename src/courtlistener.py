@@ -372,11 +372,13 @@ def build_complaint_documents_from_hits(
             url = data.get("next")
     
         print(f"[DEBUG] total RECAP docs fetched={len(docs)}")
-
+        recap_doc_count = len(docs)
+        
         # =====================================================
         # 🔥 NEW: RECAP API 실패 시 HTML fallback
         # =====================================================
         if not docs:
+        if recap_doc_count == 0:            
             print("[DEBUG] RECAP empty → HTML fallback activated")
             html_pdf_url = _extract_first_pdf_from_docket_html(did)
 
@@ -404,8 +406,7 @@ def build_complaint_documents_from_hits(
                     extracted_causes=", ".join(causes) if causes else "미확인",
                     extracted_ai_snippet=ai_snip,
                 ))
-
-            continue
+            # RECAP 완전 실패한 경우에만 fallback 실행       
         
         for d in docs:
             desc = _safe_str(d.get("description")).lower()
