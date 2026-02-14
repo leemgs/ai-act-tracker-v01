@@ -132,12 +132,16 @@ def render_markdown(
         lines.append("|---|---|")
         for k, v in counter.most_common(10):
             lines.append(f"| {_esc(k)} | **{v}** |")
+        # 총 개수 추가
+        total_count = sum(counter.values())
+        lines.append("|---|---|")
+        lines.append(f"| **총개수** | **{total_count}** |")            
         lines.append("")
 
-    # AI 소송 업데이트 기준 Top3
+    # AI 소송 Top3 (업데이트 기준)
     if cl_cases:
-        print(f"[DEBUG] '최근 소송 업데이트 기준 Top 3' is printed.")        
-        lines.append("## 🧠 최근 소송 업데이트 기준 Top 3\n")
+        print(f"[DEBUG] '최근 소송 Top 3 (업데이트 기준)' is printed.")        
+        lines.append("## 🧠 최근 소송 Top 3 (업데이트 기준)\n")
         top_cases = sorted(cl_cases, key=lambda x: x.date_filed, reverse=True)[:3]
         for c in top_cases:
             lines.append(f"> **{_esc(c.case_name)}**")
