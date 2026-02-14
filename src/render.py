@@ -26,7 +26,7 @@ def _mdlink(label: str, url: str) -> str:
     if not url:
         return label
 
-    # 🔥 이미 Markdown 링크 형식이면 그대로 반환 (이중 방지)
+    # 이미 Markdown 링크 형식이면 그대로 반환 (이중 방지)
     if url.startswith("[") and "](" in url:
         return url
         
@@ -122,7 +122,7 @@ def render_markdown(
     lines.append("|---|---|")
     lines.append(f"| 📰 외부기사 수집건 | **{len(lawsuits)}** |")
     lines.append(f"| ⚖️ RECAP  소송제기 | **{len(cl_cases)}** |")
-    lines.append(f"| 📄 RECAP  법원문서 | **{len(cl_docs)}** |\n")
+    lines.append(f"| ⚖️ RECAP  법원문서 | **{len(cl_docs)}** |\n")
 
     # Nature 통계
     if cl_cases:
@@ -171,7 +171,7 @@ def render_markdown(
     # RECAP 케이스
     if cl_cases:
         
-        # 🔥 CLDocument를 docket_id 기준으로 매핑
+        # CLDocument를 docket_id 기준으로 매핑
         doc_map = {}
         for d in cl_docs:
             if d.docket_id:
@@ -276,14 +276,14 @@ def render_markdown(
                     f"{_esc(c.recent_updates)} |"
                 )
 
-        lines.append("## 🔥 RECAP 1/2: 820 Copyright\n")
+        lines.append("## ⚖️ RECAP 1/2 (820 Copyright)\n")
         if copyright_cases:
             print(f"[DEBUG] 'RECAP 1/2: 820 Copyright' is printed.")     
             render_case_table(copyright_cases)
         else:
             lines.append("820 사건 없음\n")
 
-        lines.append("## 📁 RECAP 2/2: Others\n")
+        lines.append("## ⚖️ RECAP 2/2 (Others)\n")
         if other_cases:
             print(f"[DEBUG] 'RECAP 2/2: Others' is printed.")                
             render_case_table(other_cases)
