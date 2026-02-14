@@ -517,30 +517,16 @@ def build_case_summary_from_docket_id(docket_id: int) -> Optional[CLCaseSummary]
     extracted_ai_snippet = ""    
     
     # ======================================================
-    # 🔥 NEW SIMPLIFIED LOGIC
-    # HTML 페이지에서 첫 번째 PDF 직접 추출 (API 불필요)
+    # 🔥 UNIFIED LOGIC
+    # build_complaint_documents_from_hits와 동일하게
+    # HTML fallback 방식만 사용
     # ======================================================
- 
+
     html_pdf_url = _extract_first_pdf_from_docket_html(docket_id)
-    
-    # 🔥 NEW FIX:
-    # RECAP API 실패 상황에서도 complaint_link 항상 세팅
-    if not html_pdf_url:
-        # 혹시 RECAP 문서가 있었는지 직접 확인
-        recap_data = _get(RECAP_DOCS_URL, params={"docket": docket_id, "page_size": 5})
-        if recap_data:
-            for d in recap_data.get("results", []):
-                desc = _safe_str(d.get("description")).lower()
-                if any(k in desc for k in COMPLAINT_KEYWORDS):
-                    html_pdf_url = _abs_url(d.get("filepath_local") or "")
-                    complaint_doc_no = _safe_str(d.get("document_number")) or "1"
-                    complaint_type = _detect_complaint_type(desc)
-                    break 
-    
+
     if html_pdf_url:
-        # 🔥 순수 URL만 저장 (Markdown 생성 금지)
         complaint_link = html_pdf_url
-        complaint_doc_no = "1"  # 첫 번째 문서 기준
+        complaint_doc_no = "1"
         complaint_type = "Original"
 
         snippet = extract_pdf_text(html_pdf_url, max_chars=4000)
@@ -548,11 +534,6 @@ def build_case_summary_from_docket_id(docket_id: int) -> Optional[CLCaseSummary]
             extracted_ai_snippet = extract_ai_training_snippet(snippet) or ""
             causes_list = detect_causes(snippet)
             extracted_causes = ", ".join(causes_list) if causes_list else "미확인"
-
-    else:
-        complaint_link = ""
-        complaint_doc_no = "미확인"
-        complaint_type = "미확인"
 
     return CLCaseSummary(
         docket_id=docket_id,
