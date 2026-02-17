@@ -119,84 +119,145 @@ def main() -> None:
     comments = list_comments(owner, repo, gh_token, issue_no)
     first_run_today = len(comments) == 0
 
-    base_article_urls = set()
-    base_dockets = set()
-
     if not first_run_today:
         base_body = get_first_comment_body(owner, repo, gh_token, issue_no) or ""
 
         import re
 
-        # 기사 URL 추출
-        base_article_urls = set(re.findall(r"\((https?://[^\)]+)\)", base_body))
+        # =====================================================
+        # 🔒 안정형 테이블 기반 비교 로직
+        # =====================================================
 
-        # docket number 패턴 추출
-        base_dockets = set(
-            re.findall(r"\b\d{1,2}:\d{2}-[a-z]{2}-\d+\b", base_body, flags=re.I)
-        )
+        def extract_section(md_text: str, section_title: str) -> str:
+            lines = md_text.split("\n")
+            start = None
+            end = None
+            for i, line in enumerate(lines):
+                if line.strip().startswith(section_title):
+                    start = i + 1
+                    continue
+                if start and line.startswith("## "):
+                    end = i
+                    break
+            if start is None:
+                return ""
+            if end is None:
+                end = len(lines)
+            return "\n".join(lines[start:end])
 
-    # =========================================================
-    # Markdown 비교 후 skip 처리
-    # =========================================================
-    new_article_count = 0
-    new_docket_count = 0
+        def parse_table(section_md: str):
+            lines = [l for l in section_md.split("\n") if l.strip().startswith("|")]
+            if len(lines) < 3:
+                return [], [], ()
 
-    if not first_run_today:
-        processed_lines = []
-        for line in md.split("\n"):
+            header = lines[0]
+            separator = lines[1]
+            rows = lines[2:]
 
-            # 헤더/구분선은 항상 유지
-            if line.startswith("|---") or line.startswith("| No."):
-                processed_lines.append(line)
-                continue
+            header_cols = [c.strip() for c in header.split("|")[1:-1]]
 
-            # 기사 URL 포함 행
-            found_urls = [u for u in base_article_urls if u in line]
-            found_dockets = [d for d in base_dockets if d in line]
+            parsed_rows = []
+            for row in rows:
+                cols = [c.strip() for c in row.split("|")[1:-1]]
+                if len(cols) == len(header_cols):
+                    parsed_rows.append(cols)
 
-            if found_urls:
-                # 기존 기사 → skip
-                cells = line.split("|")
-                if len(cells) > 2:
-                    new_line = "|".join(
-                        [cells[0]] + [" skip "] * (len(cells) - 2) + [cells[-1]]
-                    )
-                    processed_lines.append(new_line)
+            return header_cols, parsed_rows, (header, separator)
+
+        def extract_article_url(cell: str):
+            m = re.search(r"\((https?://[^\)]+)\)", cell)
+            if m:
+                return m.group(1).split("&hl=")[0]
+            return None
+
+        # -------------------------
+        # Base Snapshot Key Set 생성
+        # -------------------------
+        base_article_set = set()
+        base_docket_set = set()
+
+        news_section_base = extract_section(base_body, "## 📰 외부 기사 기반 소송 정보")
+        headers, rows, _ = parse_table(news_section_base)
+        if "제목" in headers:
+            idx = headers.index("제목")
+            for r in rows:
+                url = extract_article_url(r[idx])
+                if url:
+                    base_article_set.add(url)
+
+        recap_section_base = extract_section(base_body, "## ⚖️ RECAP")
+        headers, rows, _ = parse_table(recap_section_base)
+        if "도켓번호" in headers:
+            idx = headers.index("도켓번호")
+            for r in rows:
+                base_docket_set.add(r[idx])
+
+        # -------------------------
+        # 현재 md 처리
+        # -------------------------
+        current_md = md
+
+        # 외부 기사 처리
+        news_section = extract_section(current_md, "## 📰 외부 기사 기반 소송 정보")
+        headers, rows, table_meta = parse_table(news_section)
+
+        new_article_count = 0
+        total_article_count = len(rows)
+
+        if headers and "제목" in headers:
+            idx = headers.index("제목")
+            header_line, separator_line = table_meta
+            new_lines = [header_line, separator_line]
+
+            for r in rows:
+                url = extract_article_url(r[idx])
+                if url in base_article_set:
+                    skip_row = ["skip"] * len(r)
+                    new_lines.append("| " + " | ".join(skip_row) + " |")
                 else:
-                    processed_lines.append(line)
-                continue
+                    new_lines.append("| " + " | ".join(r) + " |")
+                    new_article_count += 1
 
-            if found_dockets:
-                cells = line.split("|")
-                if len(cells) > 2:
-                    new_line = "|".join(
-                        [cells[0]] + [" skip "] * (len(cells) - 2) + [cells[-1]]
-                    )
-                    processed_lines.append(new_line)
+            new_news_section = "\n".join(new_lines)
+            current_md = current_md.replace(news_section, new_news_section)
+
+        # RECAP 처리
+        recap_section = extract_section(current_md, "## ⚖️ RECAP")
+        headers, rows, table_meta = parse_table(recap_section)
+
+        new_docket_count = 0
+        total_docket_count = len(rows)
+
+        if headers and "도켓번호" in headers:
+            idx = headers.index("도켓번호")
+            header_line, separator_line = table_meta
+            new_lines = [header_line, separator_line]
+
+            for r in rows:
+                docket = r[idx]
+                if docket in base_docket_set:
+                    skip_row = ["skip"] * len(r)
+                    new_lines.append("| " + " | ".join(skip_row) + " |")
                 else:
-                    processed_lines.append(line)
-                continue
+                    new_lines.append("| " + " | ".join(r) + " |")
+                    new_docket_count += 1
 
-            # 신규 데이터 카운트
-            if "http" in line:
-                new_article_count += 1
-            if re.search(r"\b\d{1,2}:\d{2}-[a-z]{2}-\d+\b", line, flags=re.I):
-                new_docket_count += 1
+            new_recap_section = "\n".join(new_lines)
+            current_md = current_md.replace(recap_section, new_recap_section)
 
-            processed_lines.append(line)
-
-        md = "\n".join(processed_lines)
-
+        # -------------------------
+        # Summary 생성
+        # -------------------------
         summary_header = (
             "### 자료 중복 제거 결과 요약:\n"
-            f"1). 외부 기사 기반 소송 정보: 기존 {len(base_article_urls)}건 (base snapshot) "
-            f"+ 신규 {new_article_count}건 = 총 {len(base_article_urls) + new_article_count}건\n"
-            f"2). RECAP: 기존 {len(base_dockets)}건 (base snapshot) "
-            f"+ 신규 {new_docket_count}건 = 총 {len(base_dockets) + new_docket_count}건\n\n"
+            f"1). 외부 기사 기반 소송 정보: 기존 {len(base_article_set)}건 (base snapshot) "
+            f"+ 신규 {new_article_count}건 = 총 {total_article_count}건\n"
+            f"2). RECAP: 기존 {len(base_docket_set)}건 (base snapshot) "
+            f"+ 신규 {new_docket_count}건 = 총 {total_docket_count}건\n\n"
         )
 
-        md = summary_header + md
- 
+        md = summary_header + current_md 
+
     # 이전 날짜 이슈 Close
     closed_nums = close_other_daily_issues(owner, repo, gh_token, issue_label, base_title, issue_title, issue_no, issue_url)
     if closed_nums:
