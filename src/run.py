@@ -315,38 +315,27 @@ def main() -> None:
 
     import re
 
-    base_news = new_news = total_news = None
-    base_cases = new_cases = total_cases = None
+    slack_dedup_news = None
+    slack_dedup_cases = None
 
-    if "### 자료 중복 제거 결과 요약:" in md:
-
+    if "### 중복 제거 요약:" in md:
         m_news = re.search(
-            r"외부 기사 기반 소송 정보: 기존 (\d+)건 .*?\+ 신규 (-?\d+)건 = 총 (\d+)건",
+            r"└ 📰 (.+)",
             md,
         )
 
         m_cases = re.search(
-            r"RECAP: 기존 (\d+)건 .*?\+ 신규 (-?\d+)건 = 총 (\d+)건",
+            r"└ ⚖ (.+)",
             md,
         )
 
         if m_news:
-            base_news = int(m_news.group(1))
-            new_news = int(m_news.group(2))
-            total_news = int(m_news.group(3))
+            slack_dedup_news = m_news.group(1).strip()
 
         if m_cases:
-            base_cases = int(m_cases.group(1))
-            new_cases = int(m_cases.group(2))
-            total_cases = int(m_cases.group(3))
+            slack_dedup_cases = m_cases.group(1).strip()
 
-    def format_delta(n: int) -> str:
-        if n > 0:
-            return f"+{n}"
-        elif n < 0:
-            return f"{n}"
-        else:
-            return "0"
+
 
     slack_lines = []
 
@@ -355,14 +344,10 @@ def main() -> None:
     slack_lines.append("")
 
     # 🔁 Dedup Summary
-    if base_news is not None and base_cases is not None:
+    if slack_dedup_news and slack_dedup_cases:
         slack_lines.append("🔁 Dedup Summary")
-        slack_lines.append(
-            f"└ News: {base_news} → {format_delta(new_news)} = {total_news}"
-        )
-        slack_lines.append(
-            f"└ Cases: {base_cases} → {format_delta(new_cases)} = {total_cases}"
-        )
+        slack_lines.append(f"└ 📰 {slack_dedup_news}")
+        slack_lines.append(f"└ ⚖ {slack_dedup_cases}")
         slack_lines.append("")
 
     # 📈 Collection Status
