@@ -154,20 +154,31 @@ def render_markdown(
     if cl_cases:
         debug_log("'최근 소송 Top 3 (업데이트 날짜 기준)' is printed.")        
         lines.append("## 🧠 최근 소송 Top 3 (업데이트 날짜 기준)\n")
-        lines.append("```")        
+        
         top_cases = sorted(
             cl_cases,
-            key=lambda x: x.recent_updates or "",
+            key=lambda x: x.recent_updates if x.recent_updates != "미확인" else "",
             reverse=True
         )[:3]
 
         for idx, c in enumerate(top_cases, start=1):
             update_date = c.recent_updates if c.recent_updates != "미확인" else ""
-            lines.append(f"({idx}) {_esc(update_date or '미확인')}, {_esc(c.case_name)}")
-            lines.append(f"   - {_short(c.extracted_ai_snippet, 120)}")
+            lines.append(f"**({idx}) {_esc(update_date or '미확인')}, {_esc(c.case_name)}**")
+            
+            # Nature
+            nature_val = _esc(c.nature_of_suit)
+            if nature_val == "820 Copyright":
+                nature_val = "⚠️**820 Copyright**"
+            
+            lines.append(f"   - **Nature**: {nature_val}")
+            lines.append(f"   - **소송이유**: {_esc(c.extracted_causes or c.cause or '미확인')}")
+            
+            # AI학습관련 핵심주장 (Snippet)
+            if c.extracted_ai_snippet:
+                lines.append(f"   - **AI학습관련 핵심주장**: {_short(c.extracted_ai_snippet, 200)}")
+            else:
+                lines.append(f"   - **AI학습관련 핵심주장**: 미확인")
             lines.append("")
-
-        lines.append("```")
 
     # 뉴스 테이블
     if lawsuits:
