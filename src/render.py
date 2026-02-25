@@ -83,9 +83,6 @@ def format_intensity(score: int) -> str:
 # =====================================================
 def render_markdown(
     regulations: List[RegulationInfo],
-    cl_docs: List[Any],
-    cl_cases: List[Any],
-    recap_doc_count: int,
     lookback_days: int = 3,
 ) -> str:
 

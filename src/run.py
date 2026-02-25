@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from .fetch import fetch_news
-from .extract import load_known_cases, build_lawsuits_from_news, RegulationInfo
+from .extract import load_known_cases, build_regulations_from_news, RegulationInfo
 from .render import render_markdown
 from .github_issue import find_or_create_issue, create_comment, close_other_daily_issues
 from .github_issue import list_comments
@@ -37,23 +37,14 @@ def main() -> None:
     
     issue_label = os.environ.get("ISSUE_LABEL", "ai-regulation-monitor")
 
-    # 1) CourtListener 검색 (비활성화)
-    cl_docs = []
-    cl_cases = []
-
     # 2) 뉴스 수집
     news = fetch_news()
     known = load_known_cases()
-    regulations = build_lawsuits_from_news(news, known, lookback_days=lookback_days)
-
-    recap_doc_count = 0
+    regulations = build_regulations_from_news(news, known, lookback_days=lookback_days)
 
     # 3) 렌더링
     md = render_markdown(
         regulations,
-        cl_docs,
-        cl_cases,
-        recap_doc_count,
         lookback_days=lookback_days,
     )    
     md = f"### 실행 시각(KST): {run_ts_kst}\n\n" + md
