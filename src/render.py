@@ -96,7 +96,7 @@ def render_markdown(
     lines.append("## 📰 AI Regulation News")
     if regulations:
         debug_log("'News' is printed.")            
-        lines.append("| No. | 기사일자⬇️ | 제목 | 관련 법안/사건 | 주요 내용 | 규제 강도 점수 |")
+        lines.append("| No. | 기사일자⬇️ | 제목 | 조건 (주요 키워드) | 주요 내용 | 규제 강도 점수 |")
         lines.append(_md_sep(6))
 
         # 기사일자 기준으로 정렬 (날짜 내림차순, 동일 날짜 시 강도 내림차순)
@@ -107,7 +107,8 @@ def render_markdown(
         
         scored_regulations.sort(key=lambda x: (x[1].update_or_filed_date or "", x[0]), reverse=True)
 
-        for idx, (intensity_score, s) in enumerate(scored_regulations, start=1):
+        for idx, item_tuple in enumerate(scored_regulations, start=1):
+            intensity_score, s = item_tuple
             article_url = s.article_urls[0] if getattr(s, "article_urls", None) else ""
             title_cell = _mdlink(s.article_title or s.case_title, article_url)
 
@@ -115,7 +116,7 @@ def render_markdown(
                 f"| {idx} | "
                 f"{_esc(s.update_or_filed_date)} | "
                 f"{title_cell} | "
-                f"{_esc(s.case_number if s.case_number != '미확인' else s.case_title)} | "
+                f"{_esc(s.matched_keywords)} | "
                 f"{_short(s.reason)} | "
                 f"{format_intensity(intensity_score)} |"
             )

@@ -18,6 +18,7 @@ class RegulationInfo:
     case_number: str
     reason: str
     article_urls: List[str]
+    matched_keywords: str = ""
 
 
 def fetch_page_text(url: str, timeout: int = 15) -> tuple[str, str]:
@@ -90,9 +91,16 @@ def build_regulations_from_news(news_items, known_cases, lookback_days: int = 3)
 
         hay = (item.title + " " + text)
         lower = hay.lower()
-        if not any(k in lower for k in ["regulation", "governance", "act", "policy", "bill", "copyright", "dispute", "legal", "규제", "거버넌스", "기본법", "정책"]):
+        keywords = [
+            "regulation", "governance", "act", "policy", "bill", "copyright", "dispute", "legal", 
+            "intellectual property", "framework", "safety summit", "guideline", "ethics",
+            "규제", "거버넌스", "기본법", "정책", "가이드라인", "저작권", "책임법", "윤리", "지식재산권"
+        ]
+        found = [k for k in keywords if k.lower() in lower]
+        if not found:
             debug_log(f"Skipped non-relevant news: {item.title[:60]}...")
             continue
+        matched_str = ", ".join(found)
 
         enrich = enrich_from_known(text, item.title, known_cases)
 
@@ -112,6 +120,7 @@ def build_regulations_from_news(news_items, known_cases, lookback_days: int = 3)
                 case_number=case_number,
                 reason=enrich.get("reason", reason_heuristic(hay)),
                 article_urls=sorted(list({final_url, item.url})),
+                matched_keywords=matched_str
             )
         )
 
@@ -125,5 +134,9 @@ def build_regulations_from_news(news_items, known_cases, lookback_days: int = 3)
             merged[key].article_urls = sorted(list(set(merged[key].article_urls + r.article_urls)))
             if r.update_or_filed_date > merged[key].update_or_filed_date:
                 merged[key].update_or_filed_date = r.update_or_filed_date
+            # 키워드 병합
+            k1 = [x.strip() for x in merged[key].matched_keywords.split(",") if x.strip()]
+            k2 = [x.strip() for x in r.matched_keywords.split(",") if x.strip()]
+            merged[key].matched_keywords = ", ".join(sorted(list(set(k1 + k2))))
 
     return list(merged.values())
