@@ -1,11 +1,9 @@
-from __future__ import annotations
-from typing import List
+from typing import List, Any
 
 import re
 import copy
-from .extract import Lawsuit
-from .courtlistener import CLDocument, CLCaseSummary
-from .utils import debug_log, slugify_case_name
+from .extract import RegulationInfo
+from .utils import debug_log
 
 def _esc(s: str) -> str:
     s = str(s or "").strip()
@@ -39,46 +37,37 @@ def _short(val: str, limit: int = 140) -> str:
     if len(val) <= limit:
         return _esc(val)
     return f"<details><summary>내용 펼치기</summary>{_esc(val)}</details>"
-
-
 # =====================================================
-# slug 변환
+# 규제 강도 평가 (Intensity Score)
 # =====================================================
-def _slugify_case_name(name: str) -> str:
-    return slugify_case_name(name)
-
-
-# =====================================================
-# 뉴스 위험도
-# =====================================================
-def calculate_news_risk_score(title: str, reason: str) -> int:
+def calculate_regulation_intensity_score(title: str, reason: str) -> int:
     score = 0
     text = f"{title or ''} {reason or ''}".lower()
 
-    # 1. 무단 데이터 수집 명시 (+30)
-    if any(k in text for k in ["scrape", "crawl", "ingest", "harvest", "mining", "extraction", "bulk", "collection", "robots.txt", "common crawl", "laion", "the pile", "bookcorpus", "unauthorized"]):
+    # 1. 법안/규제 직접 명시 (Act, Law, Regulation, 기본법) (+30)
+    if any(k in text for k in ["act", "law", "regulation", "bill", "legislation", "규제", "기본법", "법안"]):
         score += 30
     
-    # 2. 모델 학습 직접 언급 (+30)
-    if any(k in text for k in ["train", "training", "model", "llm", "generative ai", "genai", "gpt", "transformer", "weight", "fine-tune", "diffusion", "inference"]):
+    # 2. 강력한 규제 조치 (Penalty, Fines, Prohibit, Restriction) (+30)
+    if any(k in text for k in ["penalty", "fine", "prohibit", "restriction", "ban", "enforcement", "처벌", "과징금", "금지"]):
         score += 30
     
-    # 3. 상업적 사용 (+15)
-    if any(k in text for k in ["commercial", "profit", "monetiz", "revenue", "subscription", "enterprise", "paid", "for-profit"]):
+    # 3. 글로벌 규제 프레임워크 (EU AI Act, Governance, Policy) (+15)
+    if any(k in text for k in ["eu ai act", "governance", "policy", "framework", "guideline", "거버넌스", "정책", "가이드라인"]):
         score += 15
     
-    # 4. 저작권 관련 (뉴스에서는 Nature of Suit 820 대용으로 키워드 체크) (+15)
-    if any(k in text for k in ["copyright", "infringement", "dmca", "fair use", "derivative", "exclusive", "820"]):
+    # 4. 저작권 및 지식재산권 관련 규제 (+15)
+    if any(k in text for k in ["copyright", "intellectual property", "ip", "infringement", "저작권", "지식재산권"]):
         score += 15
         
-    # 5. 집단소송 (+10)
-    if any(k in text for k in ["class action", "putative class", "representative"]):
+    # 5. 소송 및 분쟁 관련 (+10)
+    if any(k in text for k in ["lawsuit", "litigation", "sued", "dispute", "소송", "분쟁"]):
         score += 10
 
     return min(score, 100)
 
 
-def format_risk(score: int) -> str:
+def format_intensity(score: int) -> str:
     if score >= 80:
         return f"🔥 {score}"
     if score >= 60:
@@ -88,44 +77,14 @@ def format_risk(score: int) -> str:
     return f"🟢 {score}"
 
 
-# =====================================================
-# RECAP 위험도
-# =====================================================
-def calculate_case_risk_score(case: CLCaseSummary) -> int:
-    score = 0
-    text = f"{case.extracted_ai_snippet or ''} {case.extracted_causes or ''}".lower()
-
-    # 1. 무단 데이터 수집 명시 (+30)
-    if any(k in text for k in ["scrape", "crawl", "ingest", "harvest", "mining", "extraction", "bulk", "collection", "robots.txt", "common crawl", "laion", "the pile", "bookcorpus", "unauthorized"]):
-        score += 30
-    
-    # 2. 모델 학습 직접 언급 (+30)
-    if any(k in text for k in ["train", "training", "model", "llm", "generative ai", "genai", "gpt", "transformer", "weight", "fine-tune", "diffusion", "inference"]):
-        score += 30
-    
-    # 3. 상업적 사용 (+15)
-    if any(k in text for k in ["commercial", "profit", "monetiz", "revenue", "subscription", "enterprise", "paid", "for-profit"]):
-        score += 15
-    
-    # 4. 저작권 소송 (Nature = 820) (+15)
-    # RECAP의 경우 Nature of Suit 코드를 우선하며, 텍스트에서도 저작권 침해 쟁점을 확인합니다.
-    if (case.nature_of_suit and "820" in case.nature_of_suit) or any(k in text for k in ["copyright", "infringement", "dmca", "fair use", "derivative", "exclusive"]):
-        score += 15
-        
-    # 5. 집단소송 (+10)
-    if any(k in text for k in ["class action", "putative class", "representative"]):
-        score += 10
-
-    return min(score, 100)
-
 
 # =====================================================
 # 메인 렌더
 # =====================================================
 def render_markdown(
-    lawsuits: List[Lawsuit],
-    cl_docs: List[CLDocument],
-    cl_cases: List[CLCaseSummary],
+    regulations: List[RegulationInfo],
+    cl_docs: List[Any],
+    cl_cases: List[Any],
     recap_doc_count: int,
     lookback_days: int = 3,
 ) -> str:
@@ -133,25 +92,25 @@ def render_markdown(
     lines: List[str] = []
 
     # KPI (간결 텍스트 요약)
-    lines.append(f"## 📊 최근 {lookback_days}일 요약")
-    lines.append(f"└ 📰 News: {len(lawsuits)}")
+    lines.append(f"## 📊 최근 {lookback_days}일 규제 동향 요약")
+    lines.append(f"└ 📰 News: {len(regulations)}")
 
     # 뉴스 테이블
-    lines.append("## 📰 News")
-    if lawsuits:
+    lines.append("## 📰 AI Regulation News")
+    if regulations:
         debug_log("'News' is printed.")            
-        lines.append("| No. | 기사일자⬇️ | 제목 | 소송번호 | 소송사유 | 위험도 예측 점수 |")
+        lines.append("| No. | 기사일자⬇️ | 제목 | 관련 법안/사건 | 주요 내용 | 규제 강도 점수 |")
         lines.append(_md_sep(6))
 
-        # 기사일자 기준으로 정렬 (날짜 내림차순, 동일 날짜 시 위험도 내림차순)
-        scored_lawsuits = []
-        for s in lawsuits:
-            risk_score = calculate_news_risk_score(s.article_title or s.case_title, s.reason)
-            scored_lawsuits.append((risk_score, s))
+        # 기사일자 기준으로 정렬 (날짜 내림차순, 동일 날짜 시 강도 내림차순)
+        scored_regulations = []
+        for s in regulations:
+            intensity_score = calculate_regulation_intensity_score(s.article_title or s.case_title, s.reason)
+            scored_regulations.append((intensity_score, s))
         
-        scored_lawsuits.sort(key=lambda x: (x[1].update_or_filed_date or "", x[0]), reverse=True)
+        scored_regulations.sort(key=lambda x: (x[1].update_or_filed_date or "", x[0]), reverse=True)
 
-        for idx, (risk_score, s) in enumerate(scored_lawsuits, start=1):
+        for idx, (intensity_score, s) in enumerate(scored_regulations, start=1):
             article_url = s.article_urls[0] if getattr(s, "article_urls", None) else ""
             title_cell = _mdlink(s.article_title or s.case_title, article_url)
 
@@ -159,47 +118,47 @@ def render_markdown(
                 f"| {idx} | "
                 f"{_esc(s.update_or_filed_date)} | "
                 f"{title_cell} | "
-                f"{_esc(s.case_number)} | "
+                f"{_esc(s.case_number if s.case_number != '미확인' else s.case_title)} | "
                 f"{_short(s.reason)} | "
-                f"{format_risk(risk_score)} |"
+                f"{format_intensity(intensity_score)} |"
             )
         lines.append("")
     else:
-        lines.append("새로운 소식이 0건입니다.\n")
+        lines.append("새로운 규제 소식이 0건입니다.\n")
 
     # 기사 주소
-    if lawsuits:
+    if regulations:
         lines.append("<details>")
-        lines.append("<summary><strong><span style=\"font-size:2.5em; font-weight:bold;\">📰 News Website</span></strong></summary>\n")
-        for s in lawsuits:
+        lines.append("<summary><strong><span style=\"font-size:2.5em; font-weight:bold;\">📰 Source Articles</span></strong></summary>\n")
+        for s in regulations:
             lines.append(f"### {_esc(s.article_title or s.case_title)}")
             for u in s.article_urls:
                 lines.append(f"- {u}")
         lines.append("</details>\n")
 
-    # 위험도 척도
+    # 규제 강도 척도
     lines.append("<details>")
-    lines.append("<summary><strong><span style=\"font-size:2.5em; font-weight:bold;\">📘 AI 학습 위험도 점수(0~100) 평가 척도</span></strong></summary>\n")
-    lines.append("- AI 모델 학습과의 직접성 + 법적 리스크 강도를 수치화한 지표입니다.")
-    lines.append("- 0에 가까울수록 → 간접/주변 이슈")
-    lines.append("- 100에 가까울수록 → AI 학습 핵심 리스크 사건\n")
+    lines.append("<summary><strong><span style=\"font-size:2.5em; font-weight:bold;\">📘 AI 규제 강도 점수(0~100) 평가 척도</span></strong></summary>\n")
+    lines.append("- AI 제품 출시 및 운영에 미치는 규제적 영향력과 법적 구속력을 수치화한 지표입니다.")
+    lines.append("- 0에 가까울수록 → 권고/가이드라인 위주")
+    lines.append("- 100에 가까울수록 → 법적 처벌 및 운영 금지 등 고강도 규제\n")
     lines.append("")
     
     lines.append("### 📊 등급 기준")
-    lines.append("-  0~ 39 🟢 : 간접 연관")
-    lines.append("- 40~ 59 🟡 : 학습 쟁점 존재")
-    lines.append("- 60~ 79 ⚠️ : 모델 학습 직접 언급")
-    lines.append("- 80~100 🔥 : 무단 수집 + 학습 + 상업적 사용 고위험")
+    lines.append("-  0~ 39 🟢 : 자율 규제/가이드라인")
+    lines.append("- 40~ 59 🟡 : 정책 도입 논의 중")
+    lines.append("- 60~ 79 ⚠️ : 법안 발의 및 강력 권고")
+    lines.append("- 80~100 🔥 : 법적 구속력 발생 및 고강도 제재")
     lines.append("")
 
     lines.append("### 🧮 점수 산정 기준")
     lines.append("| 항목 | 조건 (주요 키워드) | 점수 |")
     lines.append("|---|---|---|")
-    lines.append("| 무단 데이터 수집 명시 | scrape, crawl, ingest, unauthorized 등 | +30 |")
-    lines.append("| 모델 학습 직접 언급 | train, model, llm, generative ai, gpt 등 | +30 |")
-    lines.append("| 상업적 사용 | commercial, profit, monetiz, revenue 등 | +15 |")
-    lines.append("| 저작권 소송/쟁점 | Nature=820, copyright, infringement, dmca 등 | +15 |")
-    lines.append("| 집단소송 | class action, putative class 등 | +10 |")
+    lines.append("| 법안/규제 직접 명시 | Act, Law, Regulation, 기본법 등 | +30 |")
+    lines.append("| 강력한 규제 조치 | Penalty, Fines, Prohibit, 금지 등 | +30 |")
+    lines.append("| 글로벌 규제 프레임워크 | EU AI Act, Governance, 가이드라인 등 | +15 |")
+    lines.append("| 저작권/IP 관련 규제 | Copyright, Intellectual Property, 저작권 등 | +15 |")
+    lines.append("| 소송 및 분쟁 관련 | Lawsuit, Litigation, 소송 등 | +10 |")
     lines.append("")
 
     lines.append("</details>\n")

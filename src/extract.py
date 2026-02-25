@@ -15,11 +15,11 @@ CASE_NO_PATTERNS = [
 ]
 
 @dataclass
-class Lawsuit:
+class RegulationInfo:
     update_or_filed_date: str
-    # case_title: 가능한 경우 "A v. B" 형태의 사건명(소송제목)
+    # case_title: 법안/규제명 또는 관련 기관/국가
     case_title: str
-    # article_title: RSS/기사 원문 제목(기사제목)
+    # article_title: RSS/기사 원문 제목
     article_title: str
     case_number: str
     reason: str
@@ -140,16 +140,16 @@ def guess_case_title_from_article_title(title: str) -> str:
 
 def reason_heuristic(hay: str) -> str:
     h = hay.lower()
-    if "shadow library" in h or "pirat" in h:
-        return "불법 유통본/해적판 등으로 추정되는 데이터 활용 의혹에 따른 저작권 침해."
-    if "youtube" in h and ("dmca" in h or "circumvent" in h or "technical protection" in h):
-        return "유튜브 콘텐츠를 무단 수집해 AI 학습에 사용하고 기술적 보호조치를 우회했다는 취지(저작권/DMCA 등)."
-    if "lyrics" in h or "music publisher" in h:
-        return "저작권 보호 음악/가사 등을 무단으로 학습에 사용했다는 취지(음악 출판사/권리자 저작권 침해)."
-    return "AI 모델 학습을 위해 허가되지 않은(무단/불법) 데이터 사용 의혹(저작권/DMCA/무단 수집 등)."
+    if "copyright" in h or "저작권" in h:
+        return "AI 학습 데이터에 대한 저작권 가이드라인 또는 지식재산권 보호 조치 관련 정보."
+    if "governance" in h or "policy" in h or "거버넌스" in h or "정책" in h:
+        return "AI 윤리 준수 및 거버넌스 체계 구축을 위한 정책 가이드라인 또는 규제 프레임워크."
+    if "ai act" in h or "eu" in h:
+        return "EU AI Act 또는 이에 준하는 고강도 AI 규제 법안의 진척 및 대응 필요 사항."
+    return "국내외 AI 규제 법제화, 가이드라인 배포 및 정책 동향 관련 최신 정보."
 
-def build_lawsuits_from_news(news_items, known_cases, lookback_days: int = 3) -> List[Lawsuit]:
-    results: List[Lawsuit] = []
+def build_lawsuits_from_news(news_items, known_cases, lookback_days: int = 3) -> List[RegulationInfo]:
+    results: List[RegulationInfo] = []
     debug_log(f"build_lawsuits_from_news items={len(news_items)} lookback={lookback_days}")
     cutoff = datetime.now(timezone.utc) - timedelta(days=lookback_days)
     for item in news_items:
@@ -161,7 +161,7 @@ def build_lawsuits_from_news(news_items, known_cases, lookback_days: int = 3) ->
 
         hay = (item.title + " " + text)
         lower = hay.lower()
-        if not any(k in lower for k in ["lawsuit", "sued", "litigation", "copyright", "dmca", "pirat", "unauthoriz", "training data", "dataset"]):
+        if not any(k in lower for k in ["regulation", "governance", "act", "policy", "bill", "copyright", "lawsuit", "sued", "규제", "거버넌스", "기본법", "정책"]):
             debug_log(f"Skipped non-relevant news: {item.title[:60]}...")
             continue
 
@@ -178,7 +178,7 @@ def build_lawsuits_from_news(news_items, known_cases, lookback_days: int = 3) ->
         update_date = published.date().isoformat()
 
         results.append(
-            Lawsuit(
+            RegulationInfo(
                 update_or_filed_date=update_date,
                 case_title=case_title,
                 article_title=article_title,
@@ -189,7 +189,7 @@ def build_lawsuits_from_news(news_items, known_cases, lookback_days: int = 3) ->
         )
 
     # 병합
-    merged: Dict[tuple[str, str, str], Lawsuit] = {}
+    merged: Dict[tuple[str, str, str], RegulationInfo] = {}
     for r in results:
         # 사건번호가 없는 경우도 있어 (case_number, case_title, article_title)로 최대한 보존
         key = (r.case_number, r.case_title, r.article_title)
