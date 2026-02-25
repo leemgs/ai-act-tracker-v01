@@ -68,7 +68,7 @@ def apply_deduplication(md: str, comments: List[dict]) -> str:
         body = comment.get("body") or ""
         
         # News 처리
-        news_section_base = extract_section(body, "## 📰 News")
+        news_section_base = extract_section(body, "## 📰 AI Regulation News")
         h_news, r_news, _ = parse_table(news_section_base)
         if "제목" in h_news:
             idx = h_news.index("제목")
@@ -76,18 +76,10 @@ def apply_deduplication(md: str, comments: List[dict]) -> str:
                 url = extract_article_url(r[idx])
                 if url:
                     base_article_set.add(url)
-        
-        # Cases 처리
-        recap_section_base = extract_section(body, "## ⚖️ Cases")
-        h_cases, r_cases, _ = parse_table(recap_section_base)
-        if "도켓번호" in h_cases:
-            idx = h_cases.index("도켓번호")
-            for r in r_cases:
-                base_docket_set.add(r[idx])
 
     # 2) 현재 Markdown 처리 (News)
     current_md = md
-    news_section = extract_section(current_md, "## 📰 News")
+    news_section = extract_section(current_md, "## 📰 AI Regulation News")
     n_headers, n_rows, n_table_meta = parse_table(news_section)
 
     new_article_count = 0
@@ -110,7 +102,7 @@ def apply_deduplication(md: str, comments: List[dict]) -> str:
                 new_article_count += 1
         
         if new_article_count == 0:
-            new_news_section = "새로운 소식이 0건입니다.\n"
+            new_news_section = "새로운 규제 소식이 0건입니다.\n"
         else:
             final_rows = non_skip_rows
             new_lines = [header_line, separator_line]
@@ -121,57 +113,17 @@ def apply_deduplication(md: str, comments: List[dict]) -> str:
             new_news_section = "\n".join(new_lines)
         current_md = current_md.replace(news_section, new_news_section)
 
-    # 3) 현재 Markdown 처리 (Cases)
-    recap_section = extract_section(current_md, "## ⚖️ Cases")
-    c_headers, c_rows, c_table_meta = parse_table(recap_section)
-
-    new_docket_count = 0
-    total_docket_count = len(c_rows)
-
-    if c_headers and "도켓번호" in c_headers:
-        docket_idx = c_headers.index("도켓번호")
-        no_idx = c_headers.index("No.") if "No." in c_headers else None
-        status_idx = c_headers.index("상태") if "상태" in c_headers else None
-        case_idx = c_headers.index("케이스명") if "케이스명" in c_headers else None
-
-        header_line, separator_line = c_table_meta
-        non_skip_rows = []
-
-        for r in c_rows:
-            docket = r[docket_idx]
-            if docket in base_docket_set:
-                debug_log(f"Skipping duplicate Case: {r[case_idx]} ({docket})")
-            else:
-                non_skip_rows.append(r)
-                new_docket_count += 1
-
-        if new_docket_count == 0:
-            new_recap_section = "새로운 소식이 0건입니다.\n"
-        else:
-            final_rows = non_skip_rows
-            new_lines = [header_line, separator_line]
-            for row_idx, r in enumerate(final_rows, start=1):
-                if no_idx is not None:
-                    r[no_idx] = str(row_idx)
-                new_lines.append("| " + " | ".join(r) + " |")
-            new_recap_section = "\n".join(new_lines)
-        current_md = current_md.replace(recap_section, new_recap_section)
 
     # 4) 중복 제거 요약 생성
     base_news = len(base_article_set)
-    base_cases = len(base_docket_set)
     dup_news = total_article_count - new_article_count
-    dup_cases = total_docket_count - new_docket_count
 
     summary_header = (
         "### 중복 제거 요약:\n"
         "🔁 Dedup Summary\n"
         f"└ News {base_news} (Baseline): "
         f"{dup_news} (Dup), "
-        f"{new_article_count} (New)\n"
-        f"└ Cases {base_cases} (Baseline): "
-        f"{dup_cases} (Dup), "
-        f"{new_docket_count} (New)\n\n"
+        f"{new_article_count} (New)\n\n"
     )
 
     return summary_header + current_md

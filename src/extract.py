@@ -8,31 +8,21 @@ from typing import List, Dict, Any
 from datetime import datetime, timezone, timedelta
 from .utils import debug_log
 
-CASE_NO_PATTERNS = [
-    re.compile(r"\b\d:\d{2}-cv-\d{5}\b", re.IGNORECASE),
-    re.compile(r"\b\d{1,2}:\d{2}-cv-\d{5}\b", re.IGNORECASE),
-    re.compile(r"\b\d{4}-cv-\d{4,6}\b", re.IGNORECASE),
-]
-
 @dataclass
-class Lawsuit:
+class RegulationInfo:
     update_or_filed_date: str
-    # case_title: 가능한 경우 "A v. B" 형태의 사건명(소송제목)
+    # case_title: 법안/규제명 또는 관련 기관/국가
     case_title: str
-    # article_title: RSS/기사 원문 제목(기사제목)
+    # article_title: RSS/기사 원문 제목
     article_title: str
     case_number: str
     reason: str
     article_urls: List[str]
+    matched_keywords: str = ""
 
 
 def fetch_page_text(url: str, timeout: int = 15) -> tuple[str, str]:
-    """기사 페이지 텍스트를 가져오고 (텍스트, 최종URL)을 반환한다.
-
-    - Google News RSS 링크는 최종 매체 URL로 리다이렉트되는 경우가 많아,
-      allow_redirects=True로 최종 URL을 확보해 기사 주소 출력/후속 분석 정확도를 높인다.
-    - 네트워크/차단 등의 이유로 실패할 수 있으므로 예외는 삼키고 빈 값 반환.
-    """
+    """기사 페이지 텍스트를 가져오고 (텍스트, 최종URL)을 반환한다."""
     try:
         r = requests.get(url, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"}, allow_redirects=True)
         r.raise_for_status()
@@ -63,94 +53,34 @@ def enrich_from_known(text: str, title: str, known: List[Dict[str, Any]]) -> Dic
             return entry.get("enrich", {}) or {}
     return {}
 
-def extract_case_number(text: str) -> str:
-    for pat in CASE_NO_PATTERNS:
-        m = pat.search(text)
-        if m:
-            return m.group(0)
-    return "미확인"
-
-def extract_case_title_from_text(text: str) -> str:
-    """본문 텍스트에서 'A v. B' 형태의 사건명을 최대한 추출한다.
-
-    기사 제목이 사건명이 아닌 경우가 많아, 본문에서 사건명을 찾는 것이 훨씬 정확하다.
-    예: "The New York Times v. OpenAI" / "Authors v. Anthropic" 등.
-
-    오탐을 줄이기 위해:
-    - 너무 짧은 캡션/문장 제외
-    - 후보가 여러 개면 길이/키워드 점수로 최적 1개 선택
-    """
-    t = (text or "")[:20000]
-    if not t:
-        return "미확인"
-
-    # 흔한 변형: v, v., vs, vs.
-    pat = re.compile(
-        r"([A-Z][A-Za-z0-9 ,.&'\-]{2,}?)\s+v\.?s?\.?\s+([A-Z][A-Za-z0-9 ,.&'\-]{2,}?)\b"
-    )
-    cands = []
-    for m in pat.finditer(t):
-        a = m.group(1).strip(" ,.;:-")
-        b = m.group(2).strip(" ,.;:-")
-        # 너무 긴 문자열/광고 문구 등 제외
-        if len(a) < 3 or len(b) < 3:
-            continue
-        if len(a) > 80 or len(b) > 80:
-            continue
-        cand = f"{a} v. {b}"
-        cands.append(cand)
-
-    if not cands:
-        return "미확인"
-
-    # 간단 스코어링: 'et al' / 'Inc' / 'LLC' / 'PBC' 등 법률 문맥 가점
-    def score(x: str) -> float:
-        xl = x.lower()
-        bonus = 0.0
-        for kw in ["et al", "inc", "llc", "ltd", "pbc", "corp", "company", "microsoft", "openai", "anthropic", "google", "meta", "nvidia", "amazon", "times"]:
-            if kw in xl:
-                bonus += 0.2
-        # 너무 짧으면 감점
-        base = min(len(x) / 40.0, 2.0)
-        return base + bonus
-
-    best = max(cands, key=score)
-    return best
-
-
-def guess_case_title_from_article_title(title: str) -> str:
-    """기사 제목에서 사건명(소송제목)을 최대한 추정한다.
-
-    - 가장 신뢰하는 형태: "A v. B" / "A vs. B" / "A v B"
-    - 그 외: "... v. ..."가 없으면 미확인
-    """
-    t = (title or "").strip()
-    if not t:
-        return "미확인"
-
-    # 흔한 기사 접미사(" - 매체명" 등) 제거
-    t = re.sub(r"\s+[-|–|—]\s+[^-–—|]{2,}$", "", t).strip()
-
-    # A v. B 패턴
-    m = re.search(r"([A-Z][A-Za-z0-9 ,.&'\-]{2,})\s+v\.?s?\.?\s+([A-Z][A-Za-z0-9 ,.&'\-]{2,})", t)
-    if m:
-        return f"{m.group(1).strip()} v. {m.group(2).strip()}"
-
-    return "미확인"
+def extract_regulation_subject(text: str, title: str) -> str:
+    """본문 또는 제목에서 규제 대상(국가, 법안명 등)을 추정한다."""
+    text_to_search = (title + " " + text).lower()
+    
+    if "eu ai act" in text_to_search or "유럽연합" in text_to_search or "european union" in text_to_search:
+        return "EU AI Act"
+    if "기본법" in text_to_search or "대한민국" in text_to_search or "korea" in text_to_search:
+        return "AI 기본법 (KR)"
+    if "copyright" in text_to_search or "저작권" in text_to_search:
+        return "AI 저작권 가이드라인"
+    if "california" in text_to_search or "sb 1047" in text_to_search:
+        return "California AI Safety Bill"
+    
+    return "국내외 규제 동향"
 
 def reason_heuristic(hay: str) -> str:
     h = hay.lower()
-    if "shadow library" in h or "pirat" in h:
-        return "불법 유통본/해적판 등으로 추정되는 데이터 활용 의혹에 따른 저작권 침해."
-    if "youtube" in h and ("dmca" in h or "circumvent" in h or "technical protection" in h):
-        return "유튜브 콘텐츠를 무단 수집해 AI 학습에 사용하고 기술적 보호조치를 우회했다는 취지(저작권/DMCA 등)."
-    if "lyrics" in h or "music publisher" in h:
-        return "저작권 보호 음악/가사 등을 무단으로 학습에 사용했다는 취지(음악 출판사/권리자 저작권 침해)."
-    return "AI 모델 학습을 위해 허가되지 않은(무단/불법) 데이터 사용 의혹(저작권/DMCA/무단 수집 등)."
+    if "copyright" in h or "저작권" in h:
+        return "AI 학습 데이터에 대한 저작권 가이드라인 또는 지식재산권 보호 조치 관련 정보."
+    if "governance" in h or "policy" in h or "거버넌스" in h or "정책" in h:
+        return "AI 윤리 준수 및 거버넌스 체계 구축을 위한 정책 가이드라인 또는 규제 프레임워크."
+    if "ai act" in h or "eu" in h:
+        return "EU AI Act 또는 이에 준하는 고강도 AI 규제 법안의 진척 및 대응 필요 사항."
+    return "국내외 AI 규제 법제화, 가이드라인 배포 및 정책 동향 관련 최신 정보."
 
-def build_lawsuits_from_news(news_items, known_cases, lookback_days: int = 3) -> List[Lawsuit]:
-    results: List[Lawsuit] = []
-    debug_log(f"build_lawsuits_from_news items={len(news_items)} lookback={lookback_days}")
+def build_regulations_from_news(news_items, known_cases, lookback_days: int = 3) -> List[RegulationInfo]:
+    results: List[RegulationInfo] = []
+    debug_log(f"build_regulations_from_news items={len(news_items)} lookback={lookback_days}")
     cutoff = datetime.now(timezone.utc) - timedelta(days=lookback_days)
     for item in news_items:
         if item.published_at and item.published_at < cutoff:
@@ -161,37 +91,42 @@ def build_lawsuits_from_news(news_items, known_cases, lookback_days: int = 3) ->
 
         hay = (item.title + " " + text)
         lower = hay.lower()
-        if not any(k in lower for k in ["lawsuit", "sued", "litigation", "copyright", "dmca", "pirat", "unauthoriz", "training data", "dataset"]):
+        keywords = [
+            "regulation", "governance", "act", "policy", "bill", "copyright", "dispute", "legal", 
+            "intellectual property", "framework", "safety summit", "guideline", "ethics",
+            "규제", "거버넌스", "기본법", "정책", "가이드라인", "저작권", "책임법", "윤리", "지식재산권"
+        ]
+        found = [k for k in keywords if k.lower() in lower]
+        if not found:
             debug_log(f"Skipped non-relevant news: {item.title[:60]}...")
             continue
+        matched_str = ", ".join(found)
 
         enrich = enrich_from_known(text, item.title, known_cases)
 
-        # 1) 본문에서 소송번호/사건명 추출 (가장 정확)
-        case_number = enrich.get("case_number") or extract_case_number(text)
+        # 규제명/대상 추출
         article_title = item.title
-        case_title = enrich.get("case_title") or extract_case_title_from_text(text)
-        if case_title == "미확인":
-            case_title = guess_case_title_from_article_title(article_title)
+        case_title = enrich.get("case_title") or extract_regulation_subject(text, article_title)
+        case_number = enrich.get("case_number") or "N/A"
 
         published = item.published_at or datetime.now(timezone.utc)
         update_date = published.date().isoformat()
 
         results.append(
-            Lawsuit(
+            RegulationInfo(
                 update_or_filed_date=update_date,
                 case_title=case_title,
                 article_title=article_title,
                 case_number=case_number,
                 reason=enrich.get("reason", reason_heuristic(hay)),
                 article_urls=sorted(list({final_url, item.url})),
+                matched_keywords=matched_str
             )
         )
 
     # 병합
-    merged: Dict[tuple[str, str, str], Lawsuit] = {}
+    merged: Dict[tuple[str, str, str], RegulationInfo] = {}
     for r in results:
-        # 사건번호가 없는 경우도 있어 (case_number, case_title, article_title)로 최대한 보존
         key = (r.case_number, r.case_title, r.article_title)
         if key not in merged:
             merged[key] = r
@@ -199,5 +134,9 @@ def build_lawsuits_from_news(news_items, known_cases, lookback_days: int = 3) ->
             merged[key].article_urls = sorted(list(set(merged[key].article_urls + r.article_urls)))
             if r.update_or_filed_date > merged[key].update_or_filed_date:
                 merged[key].update_or_filed_date = r.update_or_filed_date
+            # 키워드 병합
+            k1 = [x.strip() for x in merged[key].matched_keywords.split(",") if x.strip()]
+            k2 = [x.strip() for x in r.matched_keywords.split(",") if x.strip()]
+            merged[key].matched_keywords = ", ".join(sorted(list(set(k1 + k2))))
 
     return list(merged.values())
