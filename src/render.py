@@ -96,8 +96,8 @@ def render_markdown(
     lines.append("## 📰 AI Regulation News")
     if regulations:
         debug_log("'News' is printed.")            
-        lines.append("| No. | 기사일자⬇️ | 제목 | 조건 (주요 키워드) | 주요 내용 | 규제 강도 점수 |")
-        lines.append(_md_sep(6))
+        lines.append("| No. | 기사일자⬇️ | 국가 | 제목 | 조건 (주요 키워드) | 주요 내용 | 규제 강도 점수 |")
+        lines.append(_md_sep(7))
 
         # 기사일자 기준으로 정렬 (날짜 내림차순, 동일 날짜 시 강도 내림차순)
         scored_regulations = []
@@ -115,6 +115,7 @@ def render_markdown(
             lines.append(
                 f"| {idx} | "
                 f"{_esc(s.update_or_filed_date)} | "
+                f"{_esc(s.country)} | "
                 f"{title_cell} | "
                 f"{_esc(s.matched_keywords)} | "
                 f"{_short(s.reason)} | "

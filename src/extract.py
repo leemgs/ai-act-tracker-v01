@@ -11,6 +11,7 @@ from .utils import debug_log
 @dataclass
 class RegulationInfo:
     update_or_filed_date: str
+    country: str  # 추가: 규제 대상 국가
     # case_title: 법안/규제명 또는 관련 기관/국가
     case_title: str
     # article_title: RSS/기사 원문 제목
@@ -52,6 +53,30 @@ def enrich_from_known(text: str, title: str, known: List[Dict[str, Any]]) -> Dic
         if any_terms and any(term in hay for term in any_terms):
             return entry.get("enrich", {}) or {}
     return {}
+
+def extract_country(text: str, title: str) -> str:
+    """본문 또는 제목에서 국가 정보를 추정한다."""
+    text_to_search = (title + " " + text).lower()
+    
+    mapping = {
+        "대한민국": ["korea", "republic of korea", "south korea", "대한민국", "한국"],
+        "미국": ["usa", "united states", "u.s.", "u.s.a", "미국", "미 연방"],
+        "EU": ["eu ", "european union", "유럽연합", "브뤼셀", "유럽"],
+        "영국": ["uk ", "united kingdom", "영국", "런던"],
+        "중국": ["china", "중국", "베이징"],
+        "일본": ["japan", "일본", "도쿄"],
+        "캐나다": ["canada", "캐나다"],
+        "인도": ["india", "인도"],
+        "프랑스": ["france", "프랑스", "파리"],
+        "독일": ["germany", "독일", "베를린"],
+        "글로벌": ["global", "international", "글로벌", "국제"]
+    }
+    
+    for country, keywords in mapping.items():
+        if any(k in text_to_search for k in keywords):
+            return country
+            
+    return "기타"
 
 def extract_regulation_subject(text: str, title: str) -> str:
     """본문 또는 제목에서 규제 대상(국가, 법안명 등)을 추정한다."""
@@ -106,6 +131,7 @@ def build_regulations_from_news(news_items, known_cases, lookback_days: int = 3)
 
         # 규제명/대상 추출
         article_title = item.title
+        country = enrich.get("country") or extract_country(text, article_title)
         case_title = enrich.get("case_title") or extract_regulation_subject(text, article_title)
         case_number = enrich.get("case_number") or "N/A"
 
@@ -115,6 +141,7 @@ def build_regulations_from_news(news_items, known_cases, lookback_days: int = 3)
         results.append(
             RegulationInfo(
                 update_or_filed_date=update_date,
+                country=country,
                 case_title=case_title,
                 article_title=article_title,
                 case_number=case_number,
@@ -125,9 +152,9 @@ def build_regulations_from_news(news_items, known_cases, lookback_days: int = 3)
         )
 
     # 병합
-    merged: Dict[tuple[str, str, str], RegulationInfo] = {}
+    merged: Dict[tuple[str, str, str, str], RegulationInfo] = {}
     for r in results:
-        key = (r.case_number, r.case_title, r.article_title)
+        key = (r.case_number, r.country, r.case_title, r.article_title)
         if key not in merged:
             merged[key] = r
         else:
