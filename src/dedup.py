@@ -53,12 +53,12 @@ def extract_article_url(cell: str) -> str | None:
         return m.group(1).split("&hl=")[0]
     return None
 
-def apply_deduplication(md: str, comments: List[dict]) -> str:
+def apply_deduplication(md: str, comments: List[dict]) -> Tuple[str, dict | None]:
     """
     이전 GitHub 댓글들을 분석하여 중복된 데이터를 'skip' 처리하고 요약을 추가합니다.
     """
     if not comments:
-        return md
+        return md, None
 
     # 1) Base Snapshot Key Set 생성 (모든 이전 댓글 대상)
     base_article_set: Set[str] = set()
@@ -115,8 +115,8 @@ def apply_deduplication(md: str, comments: List[dict]) -> str:
 
 
     # 4) 중복 제거 요약 생성
-    base_news = len(base_article_set)
-    dup_news = total_article_count - new_article_count
+    base_news_count = len(base_article_set)
+    dup_news_count = total_article_count - new_article_count
 
     new_label = f"{new_article_count} (New)"
     if new_article_count > 0:
@@ -125,9 +125,15 @@ def apply_deduplication(md: str, comments: List[dict]) -> str:
     summary_header = (
         "### 중복 제거 요약:\n"
         "🔁 Dedup Summary\n"
-        f"└ News {base_news} (Baseline): "
-        f"{dup_news} (Dup), "
+        f"└ News {base_news_count} (Baseline): "
+        f"{dup_news_count} (Dup), "
         f"{new_label}\n\n"
     )
 
-    return summary_header + current_md
+    stats = {
+        "base_news": base_news_count,
+        "dup_news": dup_news_count,
+        "new_news": new_article_count,
+    }
+
+    return summary_header + current_md, stats
