@@ -47,7 +47,6 @@ def main() -> None:
         regulations,
         lookback_days=lookback_days,
     )    
-    md = f"### 실행 시각(KST): {run_ts_kst}\n\n" + md
     
     debug_log(f"📊 수집 및 분석 완료 (최근 {lookback_days}일)")
     debug_log(f"  ├ News: {len(regulations)}건")
@@ -66,6 +65,9 @@ def main() -> None:
     # =========================================================
     comments = list_comments(owner, repo, gh_token, issue_no)
     md = apply_deduplication(md, comments)
+
+    # 4.1) 실행 시각을 맨 위로 (중복 제거 요약보다 위로)
+    md = f"### 실행 시각(KST): {run_ts_kst}\n\n" + md
 
     # 이전 날짜 이슈 Close
     closed_nums = close_other_daily_issues(owner, repo, gh_token, issue_label, base_title, issue_title, issue_no, issue_url)

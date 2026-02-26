@@ -118,12 +118,16 @@ def apply_deduplication(md: str, comments: List[dict]) -> str:
     base_news = len(base_article_set)
     dup_news = total_article_count - new_article_count
 
+    new_label = f"{new_article_count} (New)"
+    if new_article_count > 0:
+        new_label = f"🔴 **{new_label}**"
+
     summary_header = (
         "### 중복 제거 요약:\n"
         "🔁 Dedup Summary\n"
         f"└ News {base_news} (Baseline): "
         f"{dup_news} (Dup), "
-        f"{new_article_count} (New)\n\n"
+        f"{new_label}\n\n"
     )
 
     return summary_header + current_md
