@@ -1,5 +1,4 @@
-좋아요, 전체 구조를 **트리 형태 + 각 파일 역할 설명**으로 정리해드릴게요.
-(현재 레포지토리 `ai-regulation-tracker-v01` 기준)
+전체 구조를 **트리 형태 + 각 파일 역할 설명**으로 정리하였습니다.
 
 ---
 
@@ -9,7 +8,7 @@
 ai-regulation-tracker-v01
 ├── .github/
 │   └── workflows/
-│       └── hourly.yml
+│       └── regulation-monitor.yml
 ├── .env.example
 ├── .gitignore
 ├── README.md
@@ -37,7 +36,7 @@ ai-regulation-tracker-v01
 
 ## 🔧 루트 레벨
 
-### `.github/workflows/hourly.yml`
+### `.github/workflows/regulation-monitor.yml`
 
 * GitHub Actions 워크플로 파일
 * 이 프로젝트를 **1시간마다 자동 실행**
